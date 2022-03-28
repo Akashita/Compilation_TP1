@@ -1,0 +1,112 @@
+/* package et imports */
+package fr.usmb.m1isc.compilation.simple;
+import java_cup.runtime.Symbol;
+import java.util.HashMap;
+
+
+// nom de la classe a generer
+class SimpleParser;
+
+/* inclusion du code */
+
+action code {:
+    private boolean failed = false;
+    private HashMap<String, Integer> var_hash = new HashMap<String, Integer>();
+    :};
+
+
+parser code {:
+    // pour le parser (redefinition de la methode reportant les erreurs d'analyse)
+    public void report_error(String message, Object info) {
+        String m = "";
+        if (info instanceof java_cup.runtime.Symbol) {
+            Symbol s = ((Symbol) info);
+            if (s.left >= 0) {
+                m = m + "Ligne " + (s.left+1) + " ";
+            }
+            if (s.right >= 0) {
+                m = m + "Colonne " + (s.right+1) + " ";
+            }
+            if (s.left >=0  || s.right >= 0) {
+                m = m + ": ";
+            }
+        }
+        m = m + "Erreur de syntaxe";
+        System.out.println(m);
+    }
+
+:};
+
+ init with {:
+    //    initialisation du parser
+:};
+
+/* terminals symbols*/
+terminal PLUS, MINUS, MULT, DIV, MOD, EQUAL;
+terminal SEMI, ERROR, LPAR, RPAR, DECLARATION_IDENT;
+terminal Integer NUMBER;
+terminal String WORD;
+
+/* non terminals*/
+non terminal l_expr, expr;
+non terminal Integer expression, declaration;
+
+/* priorities*/
+precedence left PLUS;
+precedence left MINUS;
+precedence left MULT;
+precedence left DIV;
+precedence left MOD;
+precedence left SEMI;
+precedence left EQUAL;
+
+/* grammaire */
+/* A list of expressions is basically a program */
+l_expr   ::= expr l_expr
+          | expr ;
+
+expr 		::= expression:e
+                {:  if(failed){
+                        System.out.println("Erreur");
+                        failed=false;
+                    } else {
+                        System.out.println("Result : "+ e.intValue());
+                    }:} SEMI
+              | declaration:d
+                {:  if(failed){
+                        System.out.println("Erreur");
+                        failed=false;
+                    } else {
+                        System.out.println("Ok");
+                    }:} SEMI
+			  | error SEMI
+			  ;
+
+declaration ::= DECLARATION_IDENT WORD:varname EQUAL expression:e
+                    {:  if(!failed){
+                            System.out.println("bla");
+                            var_hash.put(varname, e);
+                            RESULT = e;
+                    }:};
+
+
+expression 	::= NUMBER:e                             {: RESULT = e ; :}
+			  | expression:e1 PLUS expression:e2     {: RESULT = e1 + e2 ; :}
+			  | MINUS expression:e1                  {: RESULT = -e1 ; :}
+			  | expression:e1 MINUS expression:e2    {: RESULT = e1 - e2 ; :}
+              | expression:e1 MULT expression:e2     {: RESULT = e1 * e2 ; :}
+              | expression:e1 DIV expression:e2      {: if (e2 != 0) {
+                                                            RESULT = e1 / e2;
+                                                        } else {
+                                                            RESULT = 0; failed = true;
+                                                        }:}
+              | expression:e1 MOD expression:e2      {: RESULT = e1 % e2 ; :}
+              | LPAR expression:e RPAR               {: RESULT = e ; :}
+              | ERROR                                {: RESULT = 0; failed = true; :}
+              | WORD:varname                         {: if(var_hash.get(varname)!=null){
+                                                          RESULT = var_hash.get(varname);
+                                                        } else {
+                                                          RESULT = 0;
+                                                          failed = true;
+                                                        }:}
+			  ;
